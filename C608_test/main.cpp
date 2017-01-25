@@ -54,18 +54,30 @@ uint16_t cmd_sleep()
 {
 	csn = 0;
 	spi.write(CMD_SLEEP);
+
+	uint16_t st = cmd_read_status();
+	if ((st & ST_ERROR_CMD) >> 7) {
+		spi.write(CMD_SLEEP);
+	}
+
 	csn = 1;
 
-	return 3;
+	return 1;
 }
 
 uint16_t cmd_standby()
 {
 	csn = 0;
 	spi.write(CMD_STANDBY);
+
+	uint16_t st = cmd_read_status();
+	if ((st & ST_ERROR_CMD) >> 7) {
+		spi.write(CMD_STANDBY);
+	}
+
 	csn = 1;
 
-	return 4;
+	return 1;
 }
 
 void cmd_fp_scan()
@@ -76,6 +88,11 @@ void cmd_fp_scan()
 	spi.write(CMD_FP_SCAN);
 
 	// for clk until data_rdy high
+	uint16_t st = cmd_read_status();
+	if ((st & ST_ERROR_CMD) >> 7) {
+		spi.write(CMD_FP_SCAN);
+	}
+
 	while (!data_rdy) { 
 		spi.fastWrite(0x00);
 		led_scan = 1;
@@ -92,28 +109,21 @@ void cmd_fp_scan()
 
 void cmd_read_fp_data()
 {
-	
 	int rows, cols;
 
 	if (current_dpi == 0) {
-		rows = 120;		//240;
+		rows = 60;		//240;
 		cols = 160;
-
-	}
-	else {
+	} else {
 		rows = 120;
 		cols = 80;
 	}
-
-	//csn = 0;
-	while (!data_rdy);
-	// need timeout
 
 	pc.printf("Read FP Data.....");
 
 	csn = 0;
 	spi.write(CMD_READ_FP_DATA);
-
+	// don't put status check here
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
 			img_buffer[i][j] = spi.write(0x00);
@@ -125,6 +135,7 @@ void cmd_read_fp_data()
 
 	pc.printf("Done!\n");
 }
+
 ///////////////////////////////
 void scan_read_fp()
 {
@@ -155,12 +166,11 @@ void save_data()
 
 	int rows, cols;
 
-	if (current_dpi == 0) {
-		rows = 120;		//240;
+	if (current_dpi == 0) {		// 1016 DPI
+		rows = 60;
 		cols = 160;
 
-	}
-	else {
+	} else {
 		rows = 120;
 		cols = 80;
 	}
@@ -183,11 +193,10 @@ void buffer_init()
 	int rows, cols;
 
 	if (current_dpi == 0) {
-		rows = 120;		//240;
+		rows = 60;
 		cols = 160;
 
-	}
-	else {
+	} else {
 		rows = 120;
 		cols = 80;
 	}
@@ -200,12 +209,12 @@ void buffer_init()
 
 void buffer_clear()
 {
-	//int rows;
+	int rows;
 
-	//rows = current_dpi ? 120 : 240;
+	rows = current_dpi ? DPI508_ROWS : DPI1016_ROWS;
 	
-	//for (int i = 0; i < rows; i++) 
-	//	free(img_buffer[i]);
+	for (int i = 0; i < rows; i++) 
+		free(img_buffer[i]);
 
 	free(img_buffer);
 
@@ -219,18 +228,13 @@ void C608_reset()
 {
 	pc.printf("C608 reset !!!\n");
 
+	current_dpi = 1;	// 508 DPI
+
 	rst0n = 0;
 	wait(0.5);	
 	rst0n = 1;
-	cmd_write_config(0x0110);	//reset value, 508 DPI
-
-	uint16_t st = cmd_read_status();
-	if ((st & ST_ERROR_CMD) >> 7) {
-		rst0n = 0;
-		wait(0.5);	
-		rst0n = 1;
-		cmd_write_config(0x0110);
-	}
+	wait(0.1);
+	cmd_write_config(current_cfg);	//reset value, 508 DPI
 }
 
 void change_led_w()
@@ -244,6 +248,7 @@ void change_led_w()
 	uint16_t led_mask = current & ~CFG_LED_ON_WIDTH;
 	uint16_t new_cfg = led_w | led_mask;
 	cmd_write_config(new_cfg);
+	current_cfg = new_cfg;
 }
 
 void change_dpi()
@@ -253,12 +258,20 @@ void change_dpi()
 	pc.printf("DPI (0: 1016, 1: 508) = ");
 	pc.scanf("%d", &dpi);
 
-	current_dpi = dpi;
+	if (current_dpi != dpi) {
+		current_dpi = dpi;
+		buffer_clear();
+		buffer_init();
+	}
+	else {
+		current_dpi = dpi;
+	}
 
 	uint16_t current = cmd_read_config();
 	uint16_t dpi_mask = current & ~CFG_DPI;
 	uint16_t new_cfg = (dpi << 8) | dpi_mask;
 	cmd_write_config(new_cfg);
+	current_cfg = new_cfg;
 }
 
 void change_4pd()
@@ -272,6 +285,7 @@ void change_4pd()
 	uint16_t pd_mask = current & ~CFG_4PD;
 	uint16_t new_cfg = (npd << 11) | pd_mask;
 	cmd_write_config(new_cfg);
+	current_cfg = new_cfg;
 }
 
 void change_test_10_9()
@@ -285,6 +299,7 @@ void change_test_10_9()
 	uint16_t b10_9_mask = current & ~CFG_TEST_10_9;
 	uint16_t new_cfg = (v << 9) | b10_9_mask;
 	cmd_write_config(new_cfg);
+	current_cfg = new_cfg;
 }
 
 void change_test_13_12()
@@ -298,6 +313,7 @@ void change_test_13_12()
 	uint16_t b13_12_mask = current & ~CFG_TEST_13_12;
 	uint16_t new_cfg = (v << 12) | b13_12_mask;
 	cmd_write_config(new_cfg);
+	current_cfg = new_cfg;
 }
 
 void change_test_15_14()
@@ -311,10 +327,10 @@ void change_test_15_14()
 	uint16_t b15_14_mask = current & ~CFG_TEST_15_14;
 	uint16_t new_cfg = (v << 14) | b15_14_mask;
 	cmd_write_config(new_cfg);
+	current_cfg = new_cfg;
 }
 
 ///////////////////////////////////
-// 
 void chk_status_signal()
 {
 	pc.printf("SIGNAL: LED_ON = %d, DATA_RDY = %d, ERROR = %d\n", (led_on ? 1 : 0), (data_rdy ? 1 : 0), (fp_error ? 1 : 0));
@@ -362,8 +378,9 @@ void print_config()
 	pc.printf("===============================================================================\n");
 }
 
-void print_status_signal()
+void print_config_status_signal()
 {
+	print_config();
 	print_status();
 	chk_status_signal();
 }
@@ -380,7 +397,7 @@ uint16_t print_menu()
 
 void print_menu1()
 {
-	pc.printf("### C608 Test (ver.0.1) ###\n\n");
+	pc.printf("### C608 Test (ver.0.2) ###\n\n");
 
 	for (int i = 0; i < MENU_SZ; i++) {
 		pc.printf("%s\n", menu[i]);
@@ -392,10 +409,10 @@ void print_menu1()
 void spi_config()
 {
 	spi.format(8, 0);
-	spi.frequency(19000000);	// 24MHz, maximum frequency
-	spi.setFormat();			// for fastWrite
+	spi.frequency(19000000);				// 19MHz, maximum frequency = 24MHz
+	spi.setFormat();					// for fastWrite from BurstSPI
 }
-//
+
 void led_on_rise_ISR()
 {
 	pc.printf("\nLED ON rise interrupt!!!\n\n");
@@ -498,11 +515,10 @@ void save_bmp()
 //
 int main()
 {
-	pc.baud(38400);
+	pc.baud(USB_SERIAL_BAUD);
 	spi_config();
 	//
 	C608_reset();
-	//change_dpi();
 	buffer_init();
 	//
 	while(1) {

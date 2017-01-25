@@ -35,6 +35,20 @@
 #define ST_ERROR_DATA_RD ( 0x0001 << 11 )
 #define ST_ALWAYS_ONE ( 0x000f << 12 )
 //
+#define DPI508_ROWS 120
+#define DPI508_COLS 80
+#define DPI1016_ROWS 60		// 240
+#define DPI1016_COLS 160	// 160
+//
+#define SPI_MODE_0 0
+#define SPI_MODE_1 1
+#define SPI_MODE_2 2
+#define SPI_MODE_3 3
+
+#define SPI_BIT_FORMAT 8
+#define SPI_SCK 19000000		// 19MHz
+//
+#define USB_SERIAL_BAUD 38400
 //
 Serial pc(USBTX, USBRX);
 DigitalOut scan_end(LED1);
@@ -55,10 +69,12 @@ DigitalIn fp_error(p15);
 DigitalIn data_rdy(p16);
 BusIn status_pin(p15, p16, p21);
 
-char **img_buffer;
-//char bmp_buffer[10678];
+//char **img_buffer;
+char **img_buffer __attribute__ ((section("AHBSRAM0")));
+//char bmp_buffer[10678] __attribute__ ((section("AHBSRAM0")));
 //
-uint16_t current_dpi = 1;	// 0: 1016 dpi, 1: 508 dpi
+uint16_t current_cfg = 0x0110;	// 508 dpi, led_on = 16
+uint16_t current_dpi = 1;		// 0: 1016 dpi, 1: 508 dpi
 //
 void led_on_rise_ISR();
 void led_on_fall_ISR();
@@ -69,11 +85,12 @@ void fp_error_fall_ISR();
 //
 void chk_status_signal();
 void C608_reset();
+//void spi_config(int, int, int);
 void spi_config();
 void save_data();
 void print_status();
 void print_config();
-void print_status_signal();
+void print_config_status_signal();
 void buffer_init();
 void buffer_clear();
 void change_led_w();
@@ -100,9 +117,8 @@ void cmd_read_fp_data();
 
 char *menu[] = {
 	(char *)("0. Reset C608"),
-	(char *)("1. Display current configuration"),
-	(char *)("2. Display current status / signal"),
-	//(char *)("3. Change DPI (0: 1016, 1: 508)"),
+	(char *)("1. Display current configuration/status"),
+	(char *)("2. Change DPI (0: 1016, 1: 508)"),
 	(char *)("3. Change LED On Width (0 - 255)"),
 	(char *)("4. Change 4PD (0, 1: merger to 1PD)"),
 	(char *)("5. Change Test Mode [10: 9] (0-3)"),
@@ -114,9 +130,9 @@ char *menu[] = {
 
 void (*ptr_func[MENU_SZ])(void) = { 
 	C608_reset,
-	print_config,
-	print_status_signal,
-	//change_dpi,
+	//print_config,
+	print_config_status_signal,
+	change_dpi,
 	change_led_w,
 	change_4pd,
 	change_test_10_9,
