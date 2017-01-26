@@ -95,14 +95,15 @@ void cmd_fp_scan()
 
 	while (!data_rdy) { 
 		spi.fastWrite(0x00);
-		led_scan = 1;
+		//spi.write(0x00);
+		//led_scan = 1;
 	}
 
 	spi.clearRX();
 	csn = 1;
 
 	scan_end = 1;
-	led_scan = 0;
+	//led_scan = 0;
 
 	pc.printf("Done!\n");
 }
@@ -408,19 +409,40 @@ void print_menu1()
 
 void spi_config()
 {
+	//LPC_SSP0->CR0 = 0x00000007;
+	//LPC_SSP0->CR1 = 0x02;
+	//LPC_PINCON->PINSEL0 |= (2 << 18) | (2 << 16) | (2 << 12) | (2 << 10);
+
 	spi.format(8, 0);
 	spi.frequency(19000000);				// 19MHz, maximum frequency = 24MHz
 	spi.setFormat();					// for fastWrite from BurstSPI
 }
-
+//
 void led_on_rise_ISR()
 {
-	pc.printf("\nLED ON rise interrupt!!!\n\n");
+	//pc.printf("\nLED ON rise interrupt!!!\n\n");
+	led_scan = 1;
 }
 
+void led_on_fall_ISR()
+{
+	//pc.printf("\nLED ON fall interrupt!!!\n\n");
+	led_scan = 0;
+}
+//
 void data_rdy_rise_ISR()
 {
 	pc.printf("\nDATA_RDY rise interrupt!!!\n\n");
+}
+
+void data_rdy_fall_ISR()
+{
+	pc.printf("\nDATA_RDY fall interrupt!!!\n\n");
+}
+//
+void fp_error_fall_ISR()
+{
+	pc.printf("\nFP_ERROR fall interrupt!!!\n\n");
 }
 
 void fp_error_rise_ISR()
@@ -428,33 +450,18 @@ void fp_error_rise_ISR()
 	pc.printf("\nFP_ERROR rise interrupt!!!\n\n");
 }
 
-void led_on_fall_ISR()
-{
-	pc.printf("\nLED ON fall interrupt!!!\n\n");
-}
-
-void data_rdy_fall_ISR()
-{
-	pc.printf("\nDATA_RDY fall interrupt!!!\n\n");
-}
-
-void fp_error_fall_ISR()
-{
-	pc.printf("\nFP_ERROR fall interrupt!!!\n\n");
-}
-/*
 // interrupt setting
 void isr_set()
 {
 	led_on.rise(&led_on_rise_ISR);
-	data_rdy.rise(&data_rdy_rise_ISR);
-	fp_error.rise(&fp_error_rise_ISR);
+	//data_rdy.rise(&data_rdy_rise_ISR);
+	//fp_error.rise(&fp_error_rise_ISR);
 
 	led_on.fall(&led_on_fall_ISR);
-	data_rdy.fall(&data_rdy_fall_ISR);
-	fp_error.fall(&fp_error_fall_ISR);
+	//data_rdy.fall(&data_rdy_fall_ISR);
+	//fp_error.fall(&fp_error_fall_ISR);
 }
-*/
+
 ////////////////////////////////////
 /*
 void save_bmp()
@@ -517,6 +524,8 @@ int main()
 {
 	pc.baud(USB_SERIAL_BAUD);
 	spi_config();
+	led_scan = 0;
+	isr_set();
 	//
 	C608_reset();
 	buffer_init();

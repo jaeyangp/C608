@@ -61,10 +61,10 @@ BurstSPI spi(p5, p6, p7);
 DigitalOut csn(p8);
 DigitalOut rst0n(p9);
 
-//InterruptIn led_on(p21);
+InterruptIn led_on(p21);
 //InterruptIn fp_error(p15);
 //InterruptIn data_rdy(p16);
-DigitalIn led_on(p21);
+//DigitalIn led_on(p21);
 DigitalIn fp_error(p15);
 DigitalIn data_rdy(p16);
 BusIn status_pin(p15, p16, p21);
@@ -73,8 +73,8 @@ BusIn status_pin(p15, p16, p21);
 char **img_buffer __attribute__ ((section("AHBSRAM0")));
 //char bmp_buffer[10678] __attribute__ ((section("AHBSRAM0")));
 //
-uint16_t current_cfg = 0x0110;	// 508 dpi, led_on = 16
-uint16_t current_dpi = 1;		// 0: 1016 dpi, 1: 508 dpi
+uint16_t current_cfg = 0xD010;	// Slope = 1, gnd = 3, 1016 dpi, led_on = 16
+uint16_t current_dpi = 0;		// 0: 1016 dpi, 1: 508 dpi
 //
 void led_on_rise_ISR();
 void led_on_fall_ISR();
@@ -103,6 +103,10 @@ void scan_read_fp();
 uint16_t print_menu();
 void print_menu1();
 void save_bmp();
+void isr_set();
+void led_on_rise_ISR();
+void ied_on_fall_ISR();
+
 
 //
 uint16_t cmd_read_status();
