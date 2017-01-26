@@ -97,6 +97,7 @@ void cmd_fp_scan()
 		spi.fastWrite(0x00);
 		//spi.write(0x00);
 		//led_scan = 1;
+		//wait_us(500);	// for test
 	}
 
 	spi.clearRX();
@@ -113,11 +114,11 @@ void cmd_read_fp_data()
 	int rows, cols;
 
 	if (current_dpi == 0) {
-		rows = 60;		//240;
-		cols = 160;
+		rows = DPI1016_ROWS;		//240;
+		cols = DPI1016_COLS;
 	} else {
-		rows = 120;
-		cols = 80;
+		rows = DPI508_ROWS;
+		cols = DPI508_COLS;
 	}
 
 	pc.printf("Read FP Data.....");
@@ -140,6 +141,7 @@ void cmd_read_fp_data()
 ///////////////////////////////
 void scan_read_fp()
 {
+	//cmd_standby();
 	cmd_fp_scan();
 	cmd_read_fp_data();
 }
@@ -168,12 +170,12 @@ void save_data()
 	int rows, cols;
 
 	if (current_dpi == 0) {		// 1016 DPI
-		rows = 60;
-		cols = 160;
+		rows = DPI1016_ROWS;
+		cols = DPI1016_COLS;
 
 	} else {
-		rows = 120;
-		cols = 80;
+		rows = DPI508_ROWS;
+		cols = DPI508_COLS;
 	}
 
 	pc.printf("Save Data ......");
@@ -194,12 +196,12 @@ void buffer_init()
 	int rows, cols;
 
 	if (current_dpi == 0) {
-		rows = 60;
-		cols = 160;
+		rows = DPI1016_ROWS;
+		cols = DPI1016_COLS;
 
 	} else {
-		rows = 120;
-		cols = 80;
+		rows = DPI508_ROWS;
+		cols = DPI508_COLS;
 	}
 
 	img_buffer = (char **)malloc(rows * sizeof(char *));
@@ -413,8 +415,8 @@ void spi_config()
 	//LPC_SSP0->CR1 = 0x02;
 	//LPC_PINCON->PINSEL0 |= (2 << 18) | (2 << 16) | (2 << 12) | (2 << 10);
 
-	spi.format(8, 0);
-	spi.frequency(19000000);				// 19MHz, maximum frequency = 24MHz
+	spi.format(SPI_BIT_FORMAT, SPI_MODE_0);
+	spi.frequency(SPI_SCK);				// 19MHz, maximum frequency = 24MHz
 	spi.setFormat();					// for fastWrite from BurstSPI
 }
 //
@@ -529,6 +531,7 @@ int main()
 	//
 	C608_reset();
 	buffer_init();
+	//cmd_sleep();
 	//
 	while(1) {
 		pc.printf("\n\n");
@@ -537,6 +540,7 @@ int main()
 
 		scan_end = 0;
 		read_end = 0;
+		//cmd_sleep();
 	}
 }
 
