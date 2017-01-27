@@ -400,7 +400,7 @@ uint16_t print_menu()
 
 void print_menu1()
 {
-	pc.printf("### C608 Test (ver.0.2) ###\n\n");
+	pc.printf("### C608 Test (ver.0.3) ###\n\n");
 
 	for (int i = 0; i < MENU_SZ; i++) {
 		pc.printf("%s\n", menu[i]);
@@ -411,10 +411,6 @@ void print_menu1()
 
 void spi_config()
 {
-	//LPC_SSP0->CR0 = 0x00000007;
-	//LPC_SSP0->CR1 = 0x02;
-	//LPC_PINCON->PINSEL0 |= (2 << 18) | (2 << 16) | (2 << 12) | (2 << 10);
-
 	spi.format(SPI_BIT_FORMAT, SPI_MODE_0);
 	spi.frequency(SPI_SCK);				// 19MHz, maximum frequency = 24MHz
 	spi.setFormat();					// for fastWrite from BurstSPI
@@ -422,106 +418,42 @@ void spi_config()
 //
 void led_on_rise_ISR()
 {
-	//pc.printf("\nLED ON rise interrupt!!!\n\n");
 	led_scan = 1;
 }
 
 void led_on_fall_ISR()
 {
-	//pc.printf("\nLED ON fall interrupt!!!\n\n");
 	led_scan = 0;
 }
 //
 void data_rdy_rise_ISR()
 {
-	pc.printf("\nDATA_RDY rise interrupt!!!\n\n");
 }
 
 void data_rdy_fall_ISR()
 {
-	pc.printf("\nDATA_RDY fall interrupt!!!\n\n");
 }
 //
 void fp_error_fall_ISR()
 {
-	pc.printf("\nFP_ERROR fall interrupt!!!\n\n");
 }
 
 void fp_error_rise_ISR()
 {
-	pc.printf("\nFP_ERROR rise interrupt!!!\n\n");
 }
 
 // interrupt setting
 void isr_set()
 {
 	led_on.rise(&led_on_rise_ISR);
-	//data_rdy.rise(&data_rdy_rise_ISR);
-	//fp_error.rise(&fp_error_rise_ISR);
+	data_rdy.rise(&data_rdy_rise_ISR);
+	fp_error.rise(&fp_error_rise_ISR);
 
 	led_on.fall(&led_on_fall_ISR);
-	//data_rdy.fall(&data_rdy_fall_ISR);
-	//fp_error.fall(&fp_error_fall_ISR);
+	data_rdy.fall(&data_rdy_fall_ISR);
+	fp_error.fall(&fp_error_fall_ISR);
 }
 
-////////////////////////////////////
-/*
-void save_bmp()
-{
-	BMP *bmp = (BMP *)malloc(sizeof(BMP));	// bmp file header and info header 
-
-	FILE *fp;
-	char fpath[] = "/sd/";
-	char fn[25] = "\0";
-
-	pc.printf("\nEnter file name (*.bmp): ");
-	pc.scanf("%s", fn);
-	char *ffn = (char *)malloc(strlen(fpath) + strlen(fn) + 1);
-
-	strcpy(ffn, fpath);
-	strcat(ffn, fn);
-	pc.printf("bmp file = %s\n", ffn);
-
-	fp = fopen(ffn, "w");
-
-	if (fp == NULL) {
-		pc.printf("Could not open file for write.\n");
-		return;
-	}
-
-	bmp->fileheader.signature[0] = 'B';
-	bmp->fileheader.signature[1] = 'M';
-	bmp->fileheader.filesize = BMP_FILE_SZ;
-	bmp->fileheader.reserved = 0x00000000;
-	bmp->fileheader.offset = BMP_OFFSET;
-	bmp->infoheader.dib_header_size = BMP_INFO_HEADER_SZ;
-	bmp->infoheader.width = BMP_WIDTH;
-	bmp->infoheader.height = BMP_HEIGHT;
-	bmp->infoheader.planes = BMP_PLANES;
-	bmp->infoheader.bits_per_pixel = BMP_BIT_PER_PIXEL;
-	bmp->infoheader.compression = BMP_COMPRESSION;
-	bmp->infoheader.image_size = BMP_IMAGE_SZ;
-	bmp->infoheader.x_pixel_per_meter = BMP_XPIXEL_PER_METER;
-	bmp->infoheader.y_pixel_per_meter = BMP_YPIXEL_PER_METER;
-	bmp->infoheader.num_color_pallette = BMP_COLOR_USED;
-	bmp->infoheader.important_color = BMP_COLOR_IMPORTANT;
-	
-	for (int i = 0; i < 256; i++) {
-		bmp->colors[i].blue = 0;
-		bmp->colors[i].green = 0;
-		bmp->colors[i].red = 0;
-		bmp->colors[i].rgb_reserved = 0;
-	}
-
-	fwrite(bmp, 1, sizeof(BMP), fp);
-	fwrite(img_buffer, 1, sizeof(img_buffer), fp);
-	fclose(fp);
-
-	free(bmp);
-	free(ffn);
-}
-*/
-//
 int main()
 {
 	pc.baud(USB_SERIAL_BAUD);
@@ -531,7 +463,6 @@ int main()
 	//
 	C608_reset();
 	buffer_init();
-	//cmd_sleep();
 	//
 	while(1) {
 		pc.printf("\n\n");
@@ -540,7 +471,6 @@ int main()
 
 		scan_end = 0;
 		read_end = 0;
-		//cmd_sleep();
 	}
 }
 
