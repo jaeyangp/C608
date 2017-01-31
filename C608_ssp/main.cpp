@@ -5,11 +5,11 @@ uint16_t cmd_read_status()
 	char rcvd_val_h = 0;
 	char rcvd_val_l = 0;
 
-	csn = 0;
-	spi.write(CMD_READ_STATUS);
-	rcvd_val_h = spi.write(0x00);
-	rcvd_val_l = spi.write(0x00);
-	csn = 1;
+	spi_cs_0();
+	spi_write(CMD_READ_STATUS);
+	rcvd_val_h = spi_write(0x00);
+	rcvd_val_l = spi_write(0x00);
+	spi_cs_1();
 
 	return (rcvd_val_h << 8 | rcvd_val_l);
 }
@@ -19,11 +19,11 @@ uint16_t cmd_read_config()
 	char rcvd_val_h = 0;
 	char rcvd_val_l = 0;
 
-	csn = 0;
-	spi.write(CMD_READ_CONFIG);
-	rcvd_val_h = spi.write(0x00);
-	rcvd_val_l = spi.write(0x00);
-	csn = 1;
+	spi_cs_0();
+	spi_write(CMD_READ_CONFIG);
+	rcvd_val_h = spi_write(0x00);
+	rcvd_val_l = spi_write(0x00);
+	spi_cs_1();
 
 	return (rcvd_val_h << 8 | rcvd_val_l);
 }
@@ -39,43 +39,43 @@ uint16_t cmd_write_config(uint16_t w)
 	uint16_t st = cmd_read_status();
 	if ((st & ST_ERROR_CMD) >> 7) {
 		C608_reset();
-	}
+	}	
 
-	csn = 0;
-	spi.write(CMD_WRITE_CONFIG);
-	spi.write(w_h);
-	spi.write(w_l);
-	csn = 1;
+	spi_cs_0();
+	spi_write(CMD_WRITE_CONFIG);
+	spi_write(w_h);
+	spi_write(w_l);
+	spi_cs_1();
 
 	return w;
 }
 
 uint16_t cmd_sleep()
 {
-	csn = 0;
-	spi.write(CMD_SLEEP);
+	spi_cs_0();
+	spi_write(CMD_SLEEP);
 
 	uint16_t st = cmd_read_status();
 	if ((st & ST_ERROR_CMD) >> 7) {
-		spi.write(CMD_SLEEP);
+		spi_write(CMD_SLEEP);
 	}
 
-	csn = 1;
+	spi_cs_1();
 
 	return 1;
 }
 
 uint16_t cmd_standby()
 {
-	csn = 0;
-	spi.write(CMD_STANDBY);
+	spi_cs_0();
+	spi_write(CMD_STANDBY);
 
 	uint16_t st = cmd_read_status();
 	if ((st & ST_ERROR_CMD) >> 7) {
-		spi.write(CMD_STANDBY);
+		spi_write(CMD_STANDBY);
 	}
 
-	csn = 1;
+	spi_cs_1();
 
 	return 1;
 }
@@ -84,30 +84,21 @@ void cmd_fp_scan()
 {
 	pc.printf("FP SCAN ......");
 
-	csn = 0;
-	spi.write(CMD_FP_SCAN);
+	spi_cs_0();
+	spi_write(CMD_FP_SCAN);
 
 	// for clk until data_rdy high
 	uint16_t st = cmd_read_status();
 	if ((st & ST_ERROR_CMD) >> 7) {
-		spi.write(CMD_FP_SCAN);
+		spi_write(CMD_FP_SCAN);
 	}
-
-	spi.setFormat();		// for fastSPI
 
 	while (!data_rdy) { 
-		spi.fastWrite(0x00);
-		//spi.write(0x00);
-		//led_scan = 1;
-		//wait_us(500);	// for test
+		spi_write(0x00);
 	}
 
-	spi.clearRX();
-	csn = 1;
-
+	spi_cs_1();
 	scan_end = 1;
-	//led_scan = 0;
-
 	pc.printf("Done!\n");
 }
 
@@ -125,16 +116,16 @@ void cmd_read_fp_data()
 
 	pc.printf("Read FP Data.....");
 
-	csn = 0;
-	spi.write(CMD_READ_FP_DATA);
-	// don't put status check here
+	spi_cs_0();
+	spi_write(CMD_READ_FP_DATA);
+
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
-			img_buffer[i][j] = spi.write(0x00);
+			img_buffer[i][j] = spi_write(0x00);
 		}
 	}
 
-	csn = 1;
+	spi_cs_1();
 	read_end = 1;
 
 	pc.printf("Done!\n");
@@ -181,6 +172,7 @@ void save_data()
 	}
 
 	pc.printf("Save Data ......");
+
 
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
@@ -413,9 +405,44 @@ void print_menu1()
 
 void spi_config()
 {
-	spi.format(SPI_BIT_FORMAT, SPI_MODE_0);
-	spi.frequency(SPI_SCK);				// 19MHz, maximum frequency = 24MHz
-	LPC_SSP0->CR0 |= 0x0010;			// switch to TI mode
+	//LPC_PINCON->PINSEL0 |= 2 << 12;	// NSS, P0.6
+	LPC_PINCON->PINSEL0 |= 2 << 14;		// SCK1, P0.7
+	LPC_PINCON->PINSEL0 |= 2 << 16;		// MISO1, P0.8
+	LPC_PINCON->PINSEL0 |= 2 << 18;		// MOSI1, P0.9
+
+	LPC_SC->PCONP |= 1 << 10;			// SSP1 power enable
+	LPC_SC->PCLKSEL0 |= 1 << 20;		// pclk = cclk
+	LPC_SSP1->CPSR |= 6;				// 16MHz
+	
+	//LPC_SSP1->CR0 &= ~(3 << 4);		// SPI mode
+	LPC_SSP1->CR0 &= ~(2 << 4);			// TI mode
+	//LPC_SSP1->CR0 |= 2 << 4;			// Microwire mode
+	
+	LPC_SSP1->CR0 |= 7 << 0;			// 8 bit
+	LPC_SSP1->CR0 &= ~(3 << 6);			// mode 0;
+	LPC_SSP1->CR1 &= ~(1 << 2);			// master
+	LPC_SSP1->CR1 |= 1 << 1;			// enable SSP1
+	LPC_GPIO0->FIODIR |= 1 << 6;		// output for CSn
+}
+
+void spi_cs_0()
+{
+	LPC_GPIO0->FIOCLR |= 1 << 6;				// csn
+}
+
+void spi_cs_1()
+{
+	LPC_GPIO0->FIOSET |= 1 << 6;				// 
+}
+
+char spi_write(char mo)
+{
+	//spi_cs_0();
+	LPC_SSP1->DR = mo;
+
+	while (!(LPC_SSP1->SR & (1 << 2)));		// FIFO FULL	
+	//spi_cs_1();
+	return(LPC_SSP1->DR);
 }
 //
 void led_on_rise_ISR()
