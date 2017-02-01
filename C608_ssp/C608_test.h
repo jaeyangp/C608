@@ -69,10 +69,11 @@ InterruptIn data_rdy(p16);
 //DigitalIn data_rdy(p16);
 BusIn status_pin(p15, p16, p21);
 
-//char **img_buffer;
-char **img_buffer __attribute__ ((section("AHBSRAM0")));
+char **img_buffer;
+//char **img_buffer __attribute__ ((section("AHBSRAM0")));
 //
 uint16_t current_cfg = 0xD010;	// Slope = 1, gnd = 3, 1016 dpi, led_on = 16
+//uint16_t current_cfg = 0xD110;	// Slope = 1, gnd = 3, 508 dpi, led_on = 16
 uint16_t current_dpi = 0;		// 0: 1016 dpi, 1: 508 dpi
 //
 void led_on_rise_ISR();
@@ -118,9 +119,11 @@ uint16_t cmd_standby();
 void cmd_fp_scan();
 void cmd_read_fp_data();
 //
-char spi_write(char);
+char spi_write_read(char);
+void spi_write_only(char);
 void spi_cs_0();
 void spi_cs_1();
+void spi_clear_rx();
 //
 #define MENU_SZ 10
 

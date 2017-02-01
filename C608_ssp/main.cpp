@@ -6,9 +6,9 @@ uint16_t cmd_read_status()
 	char rcvd_val_l = 0;
 
 	spi_cs_0();
-	spi_write(CMD_READ_STATUS);
-	rcvd_val_h = spi_write(0x00);
-	rcvd_val_l = spi_write(0x00);
+	spi_write_read(CMD_READ_STATUS);
+	rcvd_val_h = spi_write_read(0x00);
+	rcvd_val_l = spi_write_read(0x00);
 	spi_cs_1();
 
 	return (rcvd_val_h << 8 | rcvd_val_l);
@@ -20,9 +20,9 @@ uint16_t cmd_read_config()
 	char rcvd_val_l = 0;
 
 	spi_cs_0();
-	spi_write(CMD_READ_CONFIG);
-	rcvd_val_h = spi_write(0x00);
-	rcvd_val_l = spi_write(0x00);
+	spi_write_read(CMD_READ_CONFIG);
+	rcvd_val_h = spi_write_read(0x00);
+	rcvd_val_l = spi_write_read(0x00);
 	spi_cs_1();
 
 	return (rcvd_val_h << 8 | rcvd_val_l);
@@ -42,9 +42,9 @@ uint16_t cmd_write_config(uint16_t w)
 	}	
 
 	spi_cs_0();
-	spi_write(CMD_WRITE_CONFIG);
-	spi_write(w_h);
-	spi_write(w_l);
+	spi_write_read(CMD_WRITE_CONFIG);
+	spi_write_read(w_h);
+	spi_write_read(w_l);
 	spi_cs_1();
 
 	return w;
@@ -53,11 +53,11 @@ uint16_t cmd_write_config(uint16_t w)
 uint16_t cmd_sleep()
 {
 	spi_cs_0();
-	spi_write(CMD_SLEEP);
+	spi_write_read(CMD_SLEEP);
 
 	uint16_t st = cmd_read_status();
 	if ((st & ST_ERROR_CMD) >> 7) {
-		spi_write(CMD_SLEEP);
+		spi_write_read(CMD_SLEEP);
 	}
 
 	spi_cs_1();
@@ -68,11 +68,11 @@ uint16_t cmd_sleep()
 uint16_t cmd_standby()
 {
 	spi_cs_0();
-	spi_write(CMD_STANDBY);
+	spi_write_read(CMD_STANDBY);
 
 	uint16_t st = cmd_read_status();
 	if ((st & ST_ERROR_CMD) >> 7) {
-		spi_write(CMD_STANDBY);
+		spi_write_read(CMD_STANDBY);
 	}
 
 	spi_cs_1();
@@ -85,19 +85,21 @@ void cmd_fp_scan()
 	pc.printf("FP SCAN ......");
 
 	spi_cs_0();
-	spi_write(CMD_FP_SCAN);
+	spi_write_only(CMD_FP_SCAN);
 
 	// for clk until data_rdy high
 	uint16_t st = cmd_read_status();
 	if ((st & ST_ERROR_CMD) >> 7) {
-		spi_write(CMD_FP_SCAN);
+		spi_write_only(CMD_FP_SCAN);
 	}
 
 	while (!data_rdy) { 
-		spi_write(0x00);
+		spi_write_only(0x00);
 	}
 
 	spi_cs_1();
+	//spi_clear_rx();				// don't 
+
 	scan_end = 1;
 	pc.printf("Done!\n");
 }
@@ -116,16 +118,21 @@ void cmd_read_fp_data()
 
 	pc.printf("Read FP Data.....");
 
+
 	spi_cs_0();
-	spi_write(CMD_READ_FP_DATA);
+	spi_write_read(CMD_READ_FP_DATA);
+
+	for (int k = 0; k < 8; k++) spi_write_read(0x00);	// dummy
 
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
-			img_buffer[i][j] = spi_write(0x00);
+			img_buffer[i][j] = spi_write_read(0x00);
 		}
 	}
-
+	////
 	spi_cs_1();
+	spi_clear_rx();			// clera RX...gap decreased
+	////
 	read_end = 1;
 
 	pc.printf("Done!\n");
@@ -412,10 +419,10 @@ void spi_config()
 
 	LPC_SC->PCONP |= 1 << 10;			// SSP1 power enable
 	LPC_SC->PCLKSEL0 |= 1 << 20;		// pclk = cclk
-	LPC_SSP1->CPSR |= 6;				// 16MHz
+	LPC_SSP1->CPSR |= 6;				// clk divisor, pclk = 96MHz /6 = 16MHz
 	
-	//LPC_SSP1->CR0 &= ~(3 << 4);		// SPI mode
-	LPC_SSP1->CR0 &= ~(2 << 4);			// TI mode
+	LPC_SSP1->CR0 &= ~(3 << 4);			// SPI mode
+	//LPC_SSP1->CR0 &= ~(2 << 4);		// TI mode
 	//LPC_SSP1->CR0 |= 2 << 4;			// Microwire mode
 	
 	LPC_SSP1->CR0 |= 7 << 0;			// 8 bit
@@ -427,22 +434,34 @@ void spi_config()
 
 void spi_cs_0()
 {
-	LPC_GPIO0->FIOCLR |= 1 << 6;				// csn
+	LPC_GPIO0->FIOCLR |= 1 << 6;		// csn, P0.6
 }
 
 void spi_cs_1()
 {
-	LPC_GPIO0->FIOSET |= 1 << 6;				// 
+	LPC_GPIO0->FIOSET |= 1 << 6;		// 
 }
 
-char spi_write(char mo)
+void spi_write_only(char mo)
 {
-	//spi_cs_0();
+	while ((LPC_SSP1->SR & 0x02) == 0);		// TX FIFO FULL			
+	LPC_SSP1->DR = mo;
+}
+
+char spi_write_read(char mo)
+{
 	LPC_SSP1->DR = mo;
 
-	while (!(LPC_SSP1->SR & (1 << 2)));		// FIFO FULL	
-	//spi_cs_1();
+	while (!(LPC_SSP1->SR & (1 << 2)));		// RX FIFO FULL	
 	return(LPC_SSP1->DR);
+}
+
+void spi_clear_rx()
+{
+	while ((LPC_SSP1->SR & ((1 << 4) | (1 << 2))) != 0) {
+		while (((LPC_SSP1->SR) & (1 << 2)) == 0);
+		int dummy = LPC_SSP1->DR;
+	}
 }
 //
 void led_on_rise_ISR()
