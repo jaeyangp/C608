@@ -2,7 +2,6 @@
 #define C608_TEST_H
 
 #include "mbed.h"
-//#include "BurstSPI.h"			// for fast SPI
 #include "SDFileSystem.h"		// SD file system
 
 // command
@@ -40,24 +39,15 @@
 #define DPI1016_ROWS 		60				// 240
 #define DPI1016_COLS 		160		
 //
-#define SPI_MODE_0 			0
-#define SPI_MODE_1 			1
-#define SPI_MODE_2 			2
-#define SPI_MODE_3 			3
-
-#define SPI_BIT_FORMAT 		8
-#define SPI_SCK 			19000000		// 19MHz
-//
 #define USB_SERIAL_BAUD 	38400
 //
 Serial pc(USBTX, USBRX);
 DigitalOut scan_end(LED1);
 DigitalOut read_end(LED2);
-DigitalOut led_scan(p19);
+DigitalOut led_scan1(p19);
+DigitalOut led_scan2(p20);
 SDFileSystem sd(p11, p12, p13, p14, "sd");
 
-//SPI spi(p5, p6, p7);
-//BurstSPI spi(p5, p6, p7);
 DigitalOut csn(p8);
 DigitalOut rst0n(p9);
 
@@ -69,12 +59,15 @@ InterruptIn data_rdy(p16);
 //DigitalIn data_rdy(p16);
 BusIn status_pin(p15, p16, p21);
 
-char **img_buffer;
-//char **img_buffer __attribute__ ((section("AHBSRAM0")));
+char **img_buffer;					// in the main memory 32KB
+//char **img_buffer __attribute__ ((section("AHBSRAM0")));	// 16KB
+//char **img_buffer __attribute__ ((section("AHBSRAM1")));	// 16KB
+int rows;
+int cols;
 //
-uint16_t current_cfg = 0xD010;	// Slope = 1, gnd = 3, 1016 dpi, led_on = 16
-//uint16_t current_cfg = 0xD110;	// Slope = 1, gnd = 3, 508 dpi, led_on = 16
-uint16_t current_dpi = 0;		// 0: 1016 dpi, 1: 508 dpi
+//uint16_t current_cfg = 0xD010;	// Slope = 1, gnd = 3, 1016 dpi, led_on = 16
+uint16_t current_cfg = 0xD110;		// Slope = 1, gnd = 3,  508 dpi, led_on = 16
+uint16_t current_dpi = 1;			// 0: 1016 dpi, 1: 508 dpi
 //
 void led_on_rise_ISR();
 void led_on_fall_ISR();
@@ -128,7 +121,7 @@ void spi_clear_rx();
 #define MENU_SZ 10
 
 char *menu[] = {
-	(char *)("0. Reset C608"),
+	(char *)("0. Reset C608 with current configuration"),
 	(char *)("1. Display current configuration/status"),
 	(char *)("2. Change DPI (0: 1016, 1: 508)"),
 	(char *)("3. Change LED On Width (0 - 255)"),
@@ -142,7 +135,6 @@ char *menu[] = {
 
 void (*ptr_func[MENU_SZ])(void) = { 
 	C608_reset,
-	//print_config,
 	print_config_status_signal,
 	change_dpi,
 	change_led_w,

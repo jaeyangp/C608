@@ -82,68 +82,48 @@ uint16_t cmd_standby()
 
 void cmd_fp_scan()
 {
-	pc.printf("FP SCAN ......");
 
 	spi_cs_0();
 	spi_write_only(CMD_FP_SCAN);
 
-	// for clk until data_rdy high
 	uint16_t st = cmd_read_status();
 	if ((st & ST_ERROR_CMD) >> 7) {
+		spi_cs_0();
 		spi_write_only(CMD_FP_SCAN);
 	}
 
+	spi_cs_0();
 	while (!data_rdy) { 
 		spi_write_only(0x00);
 	}
 
 	spi_cs_1();
-	//spi_clear_rx();				// don't 
-
-	scan_end = 1;
-	pc.printf("Done!\n");
 }
 
 void cmd_read_fp_data()
 {
-	int rows, cols;
-
-	if (current_dpi == 0) {
-		rows = DPI1016_ROWS;		//240;
-		cols = DPI1016_COLS;
-	} else {
-		rows = DPI508_ROWS;
-		cols = DPI508_COLS;
-	}
-
-	pc.printf("Read FP Data.....");
-
-
 	spi_cs_0();
 	spi_write_read(CMD_READ_FP_DATA);
 
-	for (int k = 0; k < 8; k++) spi_write_read(0x00);	// dummy
+	for (int k = 0; k < 8; k++) spi_write_read(0x00);	// remove first 8 bytes dummy ///
 
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
 			img_buffer[i][j] = spi_write_read(0x00);
 		}
 	}
-	////
+	
 	spi_cs_1();
 	spi_clear_rx();			// clera RX...gap decreased
-	////
-	read_end = 1;
-
-	pc.printf("Done!\n");
 }
 
 ///////////////////////////////
 void scan_read_fp()
 {
-	//cmd_standby();
+	pc.printf("FP SCAN and Read ......");
 	cmd_fp_scan();
 	cmd_read_fp_data();
+	pc.printf("Scan and Read Done!\n");
 }
 
 void save_data()
@@ -167,19 +147,7 @@ void save_data()
 		return;
 	}
 
-	int rows, cols;
-
-	if (current_dpi == 0) {		// 1016 DPI
-		rows = DPI1016_ROWS;
-		cols = DPI1016_COLS;
-
-	} else {
-		rows = DPI508_ROWS;
-		cols = DPI508_COLS;
-	}
-
 	pc.printf("Save Data ......");
-
 
 	for (int i = 0; i < rows; i++) {
 		for (int j = 0; j < cols; j++) {
@@ -187,15 +155,13 @@ void save_data()
 		}
 	}
 
-	pc.printf("Done!\n");
-	fclose(fp); 
 	free(ffn);
+	fclose(fp); 
+	pc.printf("Done!\n");
 }
 
 void buffer_init()
 {
-	int rows, cols;
-
 	if (current_dpi == 0) {
 		rows = DPI1016_ROWS;
 		cols = DPI1016_COLS;
@@ -213,21 +179,13 @@ void buffer_init()
 
 void buffer_clear()
 {
-	int rows;
-
-	rows = current_dpi ? DPI508_ROWS : DPI1016_ROWS;
-	
 	for (int i = 0; i < rows; i++) 
 		free(img_buffer[i]);
 
 	free(img_buffer);
-
-	pc.printf("Buffer cleared!\n");
 }
 
 /////////////////////////////
-// configuration change utils
-
 void C608_reset()
 {
 	pc.printf("C608 reset !!!\n");
@@ -401,7 +359,7 @@ uint16_t print_menu()
 
 void print_menu1()
 {
-	pc.printf("### C608 Test (ver.0.3) ###\n\n");
+	pc.printf("### C608 Test (ver.0.4) ###\n\n");
 
 	for (int i = 0; i < MENU_SZ; i++) {
 		pc.printf("%s\n", menu[i]);
@@ -423,12 +381,13 @@ void spi_config()
 	
 	LPC_SSP1->CR0 &= ~(3 << 4);			// SPI mode
 	//LPC_SSP1->CR0 &= ~(2 << 4);		// TI mode
-	//LPC_SSP1->CR0 |= 2 << 4;			// Microwire mode
+	//LPC_SSP1->CR0 |= 2 << 4;			// Microwire mode...xxx
 	
 	LPC_SSP1->CR0 |= 7 << 0;			// 8 bit
 	LPC_SSP1->CR0 &= ~(3 << 6);			// mode 0;
 	LPC_SSP1->CR1 &= ~(1 << 2);			// master
 	LPC_SSP1->CR1 |= 1 << 1;			// enable SSP1
+	LPC_SSP1->DMACR = 3;				// enable TX, RX DMA
 	LPC_GPIO0->FIODIR |= 1 << 6;		// output for CSn
 }
 
@@ -458,7 +417,7 @@ char spi_write_read(char mo)
 
 void spi_clear_rx()
 {
-	while ((LPC_SSP1->SR & ((1 << 4) | (1 << 2))) != 0) {
+	while ((LPC_SSP1->SR & ((1 << 4) + (1 << 2))) != 0) {	// BUSY (1<<4)
 		while (((LPC_SSP1->SR) & (1 << 2)) == 0);
 		int dummy = LPC_SSP1->DR;
 	}
@@ -466,12 +425,14 @@ void spi_clear_rx()
 //
 void led_on_rise_ISR()
 {
-	led_scan = 1;
+	led_scan1 = 1;
+	led_scan2 = 1;
 }
 
 void led_on_fall_ISR()
 {
-	led_scan = 0;
+	led_scan1 = 0;
+	led_scan2 = 0;
 }
 //
 void data_rdy_rise_ISR()
@@ -506,7 +467,8 @@ int main()
 {
 	pc.baud(USB_SERIAL_BAUD);
 	spi_config();
-	led_scan = 0;
+	led_scan1 = 0;
+	led_scan2 = 0;
 	isr_set();
 	//
 	C608_reset();
@@ -516,9 +478,6 @@ int main()
 		pc.printf("\n\n");
 		uint16_t menu = print_menu();
 		ptr_func[menu]();
-
-		scan_end = 0;
-		read_end = 0;
 	}
 }
 
