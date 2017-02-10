@@ -347,25 +347,30 @@ void print_config_status_signal()
 	chk_status_signal();
 }
 
+
 uint16_t print_menu()
 {
 	uint16_t sel;
+	int k;
 
-	print_menu1();
-	pc.scanf("%d", &sel);
+	do {
+		pc.printf("\n");
+		print_menu1();
+		k = pc.scanf("%d", &sel);
+	} while (k < 0 || k > 1 || sel >9);
 
 	return sel;
 }
 
 void print_menu1()
 {
-	pc.printf("### C608 Test (ver.0.4) ###\n\n");
+	pc.printf("### C608 Test (ver.0.5) ###\n\n");
 
 	for (int i = 0; i < MENU_SZ; i++) {
 		pc.printf("%s\n", menu[i]);
 	}
 
-	pc.printf("\nSelect menu: ");
+	pc.printf("\nSelect menu (0 - 9): ");
 }
 
 void spi_config()
